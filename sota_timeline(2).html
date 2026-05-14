@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Evolution of SOTA AI Models · 2018 – 2026</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-2: #131a35;
+    --grid: #243056;
+    --axis: #5b6a9a;
+    --text: #e6ecff;
+    --muted: #94a3c8;
+    --accent: #ffd166;
+
+    --openai: #10a37f;
+    --anthropic: #d97757;
+    --google: #4285f4;
+    --meta: #1877f2;
+    --mistral: #ff7000;
+    --xai: #c084fc;
+    --deepseek: #00d4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .subtitle { color: var(--muted); font-size: 13px; }
+  .stage { position: relative; background: linear-gradient(180deg, var(--bg-2) 0%, #0e1530 100%); border: 1px solid #1d2750; border-radius: 12px; padding: 12px; }
+  svg { display: block; width: 100%; height: auto; }
+  .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; background: var(--bg-2); border: 1px solid #1d2750; border-radius: 10px; }
+  button { background: #1f2a52; color: var(--text); border: 1px solid #2c3a6c; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: background 0.15s; font-weight: 500; }
+  button:hover { background: #2a376a; }
+  button.primary { background: var(--accent); color: #1a1f3a; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #ffdd85; }
+  label.ctrl { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+  input[type=range] { accent-color: var(--accent); }
+  input[type=checkbox] { accent-color: var(--accent); }
+  .scrub { flex: 1 1 200px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .caption { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.5; }
+  .dot { cursor: default; }
+  .dot:hover { stroke: #fff; stroke-width: 1.5; }
+  .label { font-size: 10.5px; fill: var(--text); pointer-events: none; }
+  .leader { stroke: var(--muted); stroke-width: 0.6; opacity: 0.4; pointer-events: none; }
+  .axis-label { font-size: 11px; fill: var(--axis); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; stroke-dasharray: 2 4; }
+  .axis-line { stroke: var(--axis); stroke-width: 1; }
+  .playhead { stroke: var(--accent); stroke-width: 1.5; opacity: 0.55; }
+  .now-date { fill: var(--accent); font-size: 12px; font-weight: 600; }
+  .benchmark-switch { font-size: 10px; fill: var(--muted); font-style: italic; }
+  .saturation-band { fill: var(--accent); opacity: 0.06; }
+  .saturation-label { fill: var(--accent); font-size: 10px; opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>The Evolution of State-of-the-Art AI Models</h1>
+      <div class="subtitle">Dynamic timescale: window starts at 2018–2022, then compresses as new years come into view</div>
+    </div>
+    <div class="subtitle">GPT-1 → frontier · ~8 years</div>
+  </header>
+
+  <div class="stage">
+    <svg id="chart" viewBox="0 0 1240 600" preserveAspectRatio="xMidYMid meet" aria-label="Animated timeline of state of the art AI models"></svg>
+  </div>
+
+  <div class="controls">
+    <button id="playBtn" class="primary">▶ Play</button>
+    <button id="resetBtn">↺ Reset</button>
+    <label class="ctrl">Speed
+      <input id="speed" type="range" min="0.25" max="3" step="0.25" value="1" />
+      <span id="speedLabel">1.0×</span>
+    </label>
+    <label class="ctrl">
+      <input id="loop" type="checkbox" checked /> Loop
+    </label>
+    <label class="ctrl scrub">Scrub
+      <input id="scrub" type="range" min="0" max="1000" step="1" value="0" />
+    </label>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="caption">
+    Watch the year ticks: at the start, the visible window spans ~4 years (2018→2022). As the playhead approaches the right edge, the visible window extends, but the left edge stays anchored at 2018 — so earlier years progressively compress to make room. This makes the acceleration of model releases visceral: the same plot width has to hold more and more time. MMLU scores 2018–2024, GPQA Diamond after.
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   DATA
+========================================================================= */
+const MODELS = [
+  { name: "GPT-1",         lab: "openai",    date: "2018-06-11", score: 20, bench: "pre-MMLU est." },
+  { name: "BERT",          lab: "google",    date: "2018-10-11", score: 22, bench: "pre-MMLU est." },
+  { name: "GPT-2",         lab: "openai",    date: "2019-02-14", score: 32.4, bench: "MMLU" },
+  { name: "T5",            lab: "google",    date: "2019-10-23", score: 35, bench: "MMLU est." },
+  { name: "GPT-3",         lab: "openai",    date: "2020-06-11", score: 43.9, bench: "MMLU 5-shot" },
+  { name: "Gopher",        lab: "google",    date: "2021-12-08", score: 60.0, bench: "MMLU" },
+  { name: "Chinchilla",    lab: "google",    date: "2022-03-29", score: 67.6, bench: "MMLU" },
+  { name: "PaLM",          lab: "google",    date: "2022-04-04", score: 69.3, bench: "MMLU" },
+  { name: "ChatGPT (3.5)", lab: "openai",    date: "2022-11-30", score: 70.0, bench: "MMLU" },
+  { name: "LLaMA",         lab: "meta",      date: "2023-02-24", score: 63.4, bench: "MMLU" },
+  { name: "GPT-4",         lab: "openai",    date: "2023-03-14", score: 86.4, bench: "MMLU 5-shot" },
+  { name: "Claude 2",      lab: "anthropic", date: "2023-07-11", score: 78.5, bench: "MMLU" },
+  { name: "LLaMA 2",       lab: "meta",      date: "2023-07-18", score: 68.9, bench: "MMLU" },
+  { name: "Mistral 7B",    lab: "mistral",   date: "2023-09-27", score: 60.1, bench: "MMLU" },
+  { name: "Gemini Ultra",  lab: "google",    date: "2023-12-06", score: 90.0, bench: "MMLU CoT@32" },
+  { name: "Claude 3 Opus", lab: "anthropic", date: "2024-03-04", score: 86.8, bench: "MMLU" },
+  { name: "GPT-4o",        lab: "openai",    date: "2024-05-13", score: 88.7, bench: "MMLU" },
+  { name: "LLaMA 3.1 405B",lab: "meta",      date: "2024-07-23", score: 88.6, bench: "MMLU" },
+  { name: "o1",            lab: "openai",    date: "2024-09-12", score: 77.3, bench: "GPQA Diamond" },
+  { name: "Claude 3.5 Sonnet", lab: "anthropic", date: "2024-10-22", score: 65.0, bench: "GPQA Diamond" },
+  { name: "o3 (preview)",  lab: "openai",    date: "2024-12-20", score: 87.7, bench: "GPQA Diamond" },
+  { name: "DeepSeek-R1",   lab: "deepseek",  date: "2025-01-20", score: 71.5, bench: "GPQA Diamond" },
+  { name: "Grok 3",        lab: "xai",       date: "2025-02-17", score: 75.4, bench: "GPQA Diamond" },
+  { name: "Claude 3.7 Sonnet", lab: "anthropic", date: "2025-02-24", score: 78.2, bench: "GPQA Diamond" },
+  { name: "GPT-4.5",       lab: "openai",    date: "2025-02-27", score: 71.4, bench: "GPQA Diamond" },
+  { name: "Gemini 2.5 Pro",lab: "google",    date: "2025-03-25", score: 84.0, bench: "GPQA Diamond" },
+  { name: "Claude Opus 4", lab: "anthropic", date: "2025-05-22", score: 83.3, bench: "GPQA Diamond" },
+  { name: "GPT-5",         lab: "openai",    date: "2025-08-07", score: 88.4, bench: "GPQA Diamond" },
+  { name: "Gemini 3 Pro",  lab: "google",    date: "2025-11-18", score: 91.9, bench: "GPQA Diamond" },
+  { name: "Claude Opus 4.5",lab: "anthropic",date: "2025-11-24", score: 87.0, bench: "GPQA Diamond" },
+  { name: "Gemini 3.1 Pro",lab: "google",    date: "2026-02-26", score: 94.3, bench: "GPQA Diamond" },
+  { name: "GPT-5.4",       lab: "openai",    date: "2026-03-05", score: 91.9, bench: "GPQA Diamond" },
+  { name: "Claude Opus 4.7",lab: "anthropic",date: "2026-04-16", score: 94.2, bench: "GPQA Diamond" },
+  { name: "GPT-5.5",       lab: "openai",    date: "2026-04-23", score: 94.0, bench: "GPQA Diamond" },
+];
+
+const LAB_INFO = {
+  openai:    { name: "OpenAI",    color: "var(--openai)"    },
+  anthropic: { name: "Anthropic", color: "var(--anthropic)" },
+  google:    { name: "Google",    color: "var(--google)"    },
+  meta:      { name: "Meta",      color: "var(--meta)"      },
+  mistral:   { name: "Mistral",   color: "var(--mistral)"   },
+  xai:       { name: "xAI",       color: "var(--xai)"       },
+  deepseek:  { name: "DeepSeek",  color: "var(--deepseek)"  },
+};
+
+MODELS.forEach(m => { m.t = new Date(m.date).getTime(); });
+MODELS.sort((a, b) => a.t - b.t);
+
+/* =========================================================================
+   DYNAMIC TIMESCALE
+   The visible time window starts as [T_DATA_START, T_INITIAL_RIGHT] and ends
+   as [T_DATA_START, T_FULL_END]. The left edge stays put; the right edge
+   slides forward, so earlier years compress as the window widens.
+
+   To make the animation feel right, we tie the right edge to the playhead
+   plus a small lead, so the playhead is always near the right side of the
+   visible window — like a heart-rate monitor advancing.
+========================================================================= */
+const T_DATA_START      = new Date("2018-04-01").getTime();
+const T_INITIAL_RIGHT   = new Date("2022-09-01").getTime();
+const T_FULL_END        = new Date("2026-07-01").getTime();
+
+const SCORE_MIN = 0, SCORE_MAX = 100;
+const W = 1240, H = 600;
+const M = { top: 36, right: 40, bottom: 64, left: 60 };
+const PW = W - M.left - M.right;
+const PH = H - M.top - M.bottom;
+
+// Two-phase animation:
+//   Phase 1 (progress 0 → PHASE1_END): "sweep" — window is FIXED at
+//     [T_DATA_START, T_INITIAL_RIGHT]. Playhead sweeps left→right across it.
+//     Dots reveal as the playhead crosses their dates.
+//   Phase 2 (progress PHASE1_END → 1): "compression" — playhead is pinned
+//     near the right edge; the right edge advances toward T_FULL_END, so
+//     older content compresses leftward to make room.
+const PHASE1_END = 0.25;   // fraction of total runtime spent on phase 1
+
+function visibleRight(progress) {
+  if (progress <= PHASE1_END) {
+    return T_INITIAL_RIGHT;  // window is fixed during phase 1
+  }
+  const p2 = (progress - PHASE1_END) / (1 - PHASE1_END);  // 0..1 within phase 2
+  return T_INITIAL_RIGHT + p2 * (T_FULL_END - T_INITIAL_RIGHT);
+}
+
+function playheadTime(progress) {
+  if (progress <= PHASE1_END) {
+    // Sweep across the fixed initial window.
+    const p1 = progress / PHASE1_END;  // 0..1 within phase 1
+    return T_DATA_START + p1 * (T_INITIAL_RIGHT - T_DATA_START);
+  }
+  // Phase 2: playhead sits just inside the (advancing) right edge.
+  const rightT = visibleRight(progress);
+  const leadMs = (rightT - T_DATA_START) * 0.04;
+  return rightT - leadMs;
+}
+
+// Current visible window bounds (set every frame)
+let curLeft = T_DATA_START, curRight = T_INITIAL_RIGHT;
+function xScale(t) {
+  return M.left + ((t - curLeft) / (curRight - curLeft)) * PW;
+}
+function yScale(s) {
+  return M.top + PH - ((s - SCORE_MIN) / (SCORE_MAX - SCORE_MIN)) * PH;
+}
+
+const svg = document.getElementById("chart");
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, text = null) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+/* =========================================================================
+   STATIC LAYERS
+========================================================================= */
+// MMLU saturation band (y-only, so fully static)
+svg.appendChild(el("rect", {
+  x: M.left, y: yScale(93), width: PW, height: yScale(86) - yScale(93),
+  class: "saturation-band"
+}));
+svg.appendChild(el("text", {
+  x: M.left + 6, y: yScale(93) - 4, class: "saturation-label"
+}, "MMLU saturation zone (~86–93%) — benchmark switches to GPQA Diamond"));
+
+// Y axis grid (static)
+for (let s = 0; s <= 100; s += 20) {
+  const y = yScale(s);
+  svg.appendChild(el("line", { x1: M.left, y1: y, x2: M.left + PW, y2: y, class: "grid-line" }));
+  svg.appendChild(el("text", { x: M.left - 8, y: y + 4, "text-anchor": "end", class: "axis-label" }, s + "%"));
+}
+svg.appendChild(el("text", {
+  x: M.left - 45, y: M.top + PH / 2,
+  transform: `rotate(-90, ${M.left - 45}, ${M.top + PH / 2})`,
+  "text-anchor": "middle", class: "axis-label"
+}, "Benchmark score"));
+
+// Axis lines
+svg.appendChild(el("line", { x1: M.left, y1: M.top + PH, x2: M.left + PW, y2: M.top + PH, class: "axis-line" }));
+svg.appendChild(el("line", { x1: M.left, y1: M.top, x2: M.left, y2: M.top + PH, class: "axis-line" }));
+
+/* =========================================================================
+   DYNAMIC LAYERS — must update every frame
+========================================================================= */
+// Year tick group
+const yearTickGroup = el("g", {});
+svg.appendChild(yearTickGroup);
+
+// Build year tick elements once, then move them each frame
+const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+const yearTicks = YEARS.map(y => {
+  const t = new Date(`${y}-01-01`).getTime();
+  const line = el("line", { y1: M.top, y2: M.top + PH, class: "grid-line" });
+  const label = el("text", { y: M.top + PH + 18, "text-anchor": "middle", class: "axis-label" }, String(y));
+  yearTickGroup.appendChild(line);
+  yearTickGroup.appendChild(label);
+  return { t, line, label };
+});
+
+// Benchmark switch marker (vertical) — also dynamic
+const switchT = new Date("2024-09-01").getTime();
+const switchLine = el("line", {
+  y1: M.top, y2: M.top + PH,
+  stroke: "var(--accent)", "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0
+});
+svg.appendChild(switchLine);
+const switchLabel = el("text", { y: M.top + 28, class: "benchmark-switch", opacity: 0 },
+  "MMLU → GPQA Diamond");
+svg.appendChild(switchLabel);
+
+// Dots, leaders, labels groups
+const leaderGroup = el("g", {});
+svg.appendChild(leaderGroup);
+const dotGroup = el("g", {});
+svg.appendChild(dotGroup);
+const labelGroup = el("g", {});
+svg.appendChild(labelGroup);
+
+// Build a DOM element per model (all labeled now)
+MODELS.forEach((m, i) => {
+  const color = LAB_INFO[m.lab].color;
+  m._dot = el("circle", {
+    r: 0, fill: color, "fill-opacity": 0.85, stroke: color, "stroke-opacity": 0.9, class: "dot"
+  });
+  const title = el("title", {}, `${m.name} · ${LAB_INFO[m.lab].name}\n${m.date} · ${m.score}% (${m.bench})`);
+  m._dot.appendChild(title);
+  dotGroup.appendChild(m._dot);
+
+  m._leader = el("line", { class: "leader", opacity: 0 });
+  leaderGroup.appendChild(m._leader);
+
+  m._label = el("text", { class: "label", opacity: 0 }, m.name);
+  labelGroup.appendChild(m._label);
+});
+
+// Playhead (on top of dots)
+const playhead = el("line", { y1: M.top, y2: M.top + PH, class: "playhead" });
+svg.appendChild(playhead);
+const nowText = el("text", { y: M.top - 12, "text-anchor": "middle", class: "now-date" }, "Jun 2018");
+svg.appendChild(nowText);
+
+// Legend
+const legend = document.getElementById("legend");
+Object.entries(LAB_INFO).forEach(([key, info]) => {
+  const s = document.createElement("span");
+  s.innerHTML = `<i style="background:${info.color}"></i>${info.name}`;
+  legend.appendChild(s);
+});
+
+/* =========================================================================
+   COLLISION-AVOIDANT LABEL PLACEMENT
+   Called every frame. For each visible model, try candidate positions
+   (right/left of dot, then up/down at increasing offsets). Pick the first
+   one that doesn't overlap any already-placed label rect.
+   Label sizes are approximated; real getBBox would be more exact but is
+   expensive every frame for 34 labels — approximation is fine here.
+========================================================================= */
+const LABEL_H = 13;
+function approxLabelWidth(name) { return Math.max(28, name.length * 5.6 + 8); }
+
+// Candidate (dx, dy) offsets from dot center for label anchor point.
+// Order matters: best/preferred placements first.
+const CANDIDATES = [
+  // Right side, vertical fan
+  [8, -8], [8, 6], [8, -22], [8, 20], [8, -36], [8, 34],
+  // Left side
+  [-8, -8], [-8, 6], [-8, -22], [-8, 20],
+  // Far above/below for tightly packed clusters
+  [8, -50], [8, 48], [-8, -50], [-8, 48],
+  [8, -64], [8, 62],
+];
+
+function rectsOverlap(a, b) {
+  return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+}
+
+function placeLabels(visibleModels, playX) {
+  const placed = [];
+  // Sort by importance: prefer placing high-score / latest first so they get
+  // the nicest slots; older / lower dots cascade around them.
+  const order = visibleModels.slice().sort((a, b) => {
+    // Most recent and highest-scoring get priority.
+    const ka = a.t * 1e-12 + a.score * 0.01;
+    const kb = b.t * 1e-12 + b.score * 0.01;
+    return kb - ka;
+  });
+
+  for (const m of order) {
+    const cx = m._px, cy = m._py;
+    const w = approxLabelWidth(m.name);
+    let chosen = null;
+    for (const [dx, dy] of CANDIDATES) {
+      // Anchor: if dx > 0, text-anchor = start, label x at cx + dx
+      //         if dx < 0, text-anchor = end,   label x at cx + dx
+      const anchor = dx >= 0 ? "start" : "end";
+      const lx = cx + dx;
+      const ly = cy + dy;
+      // Bounding box of the rendered text
+      const boxX = dx >= 0 ? lx : lx - w;
+      const boxY = ly - LABEL_H + 2;
+      const rect = { x: boxX, y: boxY, w, h: LABEL_H };
+
+      // Must be inside plot area (with small slack)
+      if (rect.x < M.left - 2 || rect.x + rect.w > M.left + PW + 2) continue;
+      if (rect.y < M.top - 18 || rect.y + rect.h > M.top + PH + 4) continue;
+
+      // No overlap with already-placed labels
+      let collides = false;
+      for (const p of placed) {
+        if (rectsOverlap(rect, p.rect)) { collides = true; break; }
+      }
+      if (collides) continue;
+
+      chosen = { lx, ly, anchor, rect, dx, dy };
+      break;
+    }
+    if (!chosen) {
+      // Last-resort: stack vertically far above the chart (rare)
+      chosen = { lx: cx + 8, ly: M.top - 6 - placed.length * 12, anchor: "start",
+                 rect: { x: cx + 8, y: M.top - 6 - placed.length * 12 - LABEL_H, w, h: LABEL_H },
+                 dx: 8, dy: -50 };
+    }
+    placed.push({ m, ...chosen });
+  }
+
+  // Apply chosen positions to the DOM
+  for (const p of placed) {
+    p.m._label.setAttribute("x", p.lx);
+    p.m._label.setAttribute("y", p.ly);
+    p.m._label.setAttribute("text-anchor", p.anchor);
+    p.m._leader.setAttribute("x1", p.m._px);
+    p.m._leader.setAttribute("y1", p.m._py);
+    // Leader endpoint near the label edge
+    const leaderEndX = p.dx >= 0 ? p.lx - 2 : p.lx + 2;
+    const leaderEndY = p.ly + (p.dy < 0 ? 3 : -3);
+    p.m._leader.setAttribute("x2", leaderEndX);
+    p.m._leader.setAttribute("y2", leaderEndY);
+  }
+}
+
+/* =========================================================================
+   ANIMATION
+========================================================================= */
+const BASE_TOTAL_MS = 32000;   // total run at 1.0× (phase 1 ~8s, phase 2 ~24s)
+let progress = 0;
+let playing = false;
+let lastFrame = null;
+let speed = 1;
+let loop = true;
+
+const playBtn   = document.getElementById("playBtn");
+const resetBtn  = document.getElementById("resetBtn");
+const speedInput= document.getElementById("speed");
+const speedLabel= document.getElementById("speedLabel");
+const loopInput = document.getElementById("loop");
+const scrub     = document.getElementById("scrub");
+
+const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function render() {
+  // Update visible window for this frame
+  curLeft = T_DATA_START;
+  curRight = visibleRight(progress);
+
+  // Year ticks: position each on the current scale, fade out if off-plot
+  for (const yt of yearTicks) {
+    const x = xScale(yt.t);
+    const inside = x >= M.left - 0.5 && x <= M.left + PW + 0.5;
+    yt.line.setAttribute("x1", x);
+    yt.line.setAttribute("x2", x);
+    yt.line.setAttribute("opacity", inside ? 1 : 0);
+    yt.label.setAttribute("x", x);
+    yt.label.setAttribute("opacity", inside ? 1 : 0);
+  }
+
+  // Benchmark-switch marker — only show after it enters the visible window
+  const sx = xScale(switchT);
+  const switchVisible = switchT <= curRight && switchT >= curLeft;
+  switchLine.setAttribute("x1", sx);
+  switchLine.setAttribute("x2", sx);
+  switchLine.setAttribute("opacity", switchVisible ? 0.45 : 0);
+  switchLabel.setAttribute("x", sx + 6);
+  switchLabel.setAttribute("opacity", switchVisible ? 1 : 0);
+
+  // Playhead position and date
+  const nowT = playheadTime(progress);
+  const px = xScale(nowT);
+  playhead.setAttribute("x1", px);
+  playhead.setAttribute("x2", px);
+  nowText.setAttribute("x", px);
+  const d = new Date(nowT);
+  nowText.textContent = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+
+  // Dots: position all, reveal those whose date <= playhead
+  const visibleModels = [];
+  for (const m of MODELS) {
+    m._px = xScale(m.t);
+    m._py = yScale(m.score);
+    m._dot.setAttribute("cx", m._px);
+    m._dot.setAttribute("cy", m._py);
+    if (m.t <= nowT) {
+      // Pop-in: estimate "time since arrival" in progress units
+      const arrivalProgress = (m.t - T_INITIAL_RIGHT) / (T_FULL_END - T_INITIAL_RIGHT);
+      const since = Math.max(0, progress - Math.max(0, arrivalProgress));
+      const intro = Math.min(1, since * 20 + 0.4); // already-arrived dots stay full-size
+      const r = 5.5 + 1.5 * Math.sin(Math.min(1, since * 12) * Math.PI);
+      m._dot.setAttribute("r", Math.max(5.5, r));
+      m._dot.setAttribute("fill-opacity", 0.85);
+      visibleModels.push(m);
+    } else {
+      m._dot.setAttribute("r", 0);
+      m._label.setAttribute("opacity", 0);
+      m._leader.setAttribute("opacity", 0);
+    }
+  }
+
+  // Place all visible labels with collision avoidance, then show them
+  placeLabels(visibleModels, px);
+  for (const m of visibleModels) {
+    m._label.setAttribute("opacity", 1);
+    m._leader.setAttribute("opacity", 0.45);
+  }
+
+  scrub.value = String(Math.round(progress * 1000));
+}
+
+function tick(ts) {
+  if (!playing) return;
+  if (lastFrame == null) lastFrame = ts;
+  const dt = ts - lastFrame;
+  lastFrame = ts;
+  const delta = (dt / BASE_TOTAL_MS) * speed;
+  let next = progress + delta;
+  if (next >= 1) {
+    if (loop) next = 0;
+    else { next = 1; playing = false; playBtn.textContent = "▶ Play"; }
+  }
+  progress = next;
+  render();
+  if (playing) requestAnimationFrame(tick);
+}
+
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.textContent = playing ? "❚❚ Pause" : "▶ Play";
+  if (playing) {
+    lastFrame = null;
+    if (progress >= 1) progress = 0;
+    requestAnimationFrame(tick);
+  }
+});
+resetBtn.addEventListener("click", () => {
+  playing = false; playBtn.textContent = "▶ Play"; lastFrame = null;
+  progress = 0; render();
+});
+speedInput.addEventListener("input", e => {
+  speed = parseFloat(e.target.value);
+  speedLabel.textContent = speed.toFixed(2) + "×";
+});
+loopInput.addEventListener("change", e => { loop = e.target.checked; });
+scrub.addEventListener("input", e => {
+  progress = parseInt(e.target.value, 10) / 1000;
+  render();
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>
